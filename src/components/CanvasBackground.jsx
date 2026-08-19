@@ -2,16 +2,6 @@ import React, { useEffect, useRef } from "react";
 
 export function CanvasBackground() {
   const canvasRef = useRef(null);
-  const mouseRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
-  const targetRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
-
-  useEffect(() => {
-    const handleMouseMove = (e) => {
-      targetRef.current = { x: e.clientX, y: e.clientY + window.scrollY };
-    };
-    window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -21,23 +11,22 @@ export function CanvasBackground() {
     if (!ctx) return;
 
     let animationFrameId;
-    let width, height;
+    let width = (canvas.width = window.innerWidth);
+    let height = (canvas.height = window.innerHeight);
     let time = 0;
     const spacing = 7;
     const dotSize = 5;
-    const glowRadius = 220;
 
     const reduceMotion =
       typeof window !== "undefined" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    const resize = () => {
+    const handleResize = () => {
       width = canvas.width = window.innerWidth;
-      height = canvas.height = Math.max(document.documentElement.scrollHeight, window.innerHeight);
+      height = canvas.height = window.innerHeight;
     };
 
-    resize();
-    window.addEventListener("resize", resize);
+    window.addEventListener("resize", handleResize);
 
     const drawField = () => {
       ctx.fillStyle = "#030303";
@@ -45,17 +34,10 @@ export function CanvasBackground() {
 
       time += reduceMotion ? 0.002 : 0.011;
 
-      const lerp = 0.06;
-      mouseRef.current.x += (targetRef.current.x - mouseRef.current.x) * lerp;
-      mouseRef.current.y += (targetRef.current.y - mouseRef.current.y) * lerp;
-
-      const mouseX = mouseRef.current.x;
-      const mouseY = mouseRef.current.y;
-
-      const centerX = mouseX;
-      const archPeakY = height * 0.08;
+      const centerX = width / 2;
+      const archPeakY = height * 0.30;
       const archWidth = width * 1.45;
-      const archHeight = height * 0.85;
+      const archHeight = height * 0.70;
 
       ctx.globalCompositeOperation = "lighter";
 
@@ -74,13 +56,6 @@ export function CanvasBackground() {
             intensity = intensity * 0.72 + waveX * waveY * 0.24 * intensity;
             intensity *= Math.max(0, 1 - Math.pow(Math.abs(normX), 2.2));
 
-            const dx = x - mouseX;
-            const dy = y - mouseY;
-            const distToCursor = Math.sqrt(dx * dx + dy * dy);
-            const cursorBoost = Math.max(0, 1 - distToCursor / glowRadius);
-            intensity += cursorBoost * 0.6;
-            intensity = Math.min(intensity, 1);
-
             if (intensity > 0.03) {
               let lum = Math.min(255, 110 * intensity + 140 * Math.pow(intensity, 2));
 
@@ -89,10 +64,9 @@ export function CanvasBackground() {
                 lum = Math.min(255, lum + 140 * coreBoost);
               }
 
-              const cursorTint = Math.min(1, cursorBoost * 1.5);
-              const r = Math.floor(lum * (0.95 + cursorTint * 0.05));
-              const g = Math.floor(lum * (0.98 + cursorTint * 0.02));
-              const b = Math.floor(Math.min(255, lum * (1.05 + cursorTint * 0.1)));
+              const r = Math.floor(lum * 0.95);
+              const g = Math.floor(lum * 0.98);
+              const b = Math.floor(Math.min(255, lum * 1.05));
 
               ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
               const size = Math.max(0.8, dotSize * intensity);
@@ -102,15 +76,6 @@ export function CanvasBackground() {
         }
       }
 
-      // Soft radial glow at cursor
-      const gradient = ctx.createRadialGradient(mouseX, mouseY, 0, mouseX, mouseY, glowRadius * 1.8);
-      gradient.addColorStop(0, "rgba(255, 255, 255, 0.035)");
-      gradient.addColorStop(0.4, "rgba(255, 255, 255, 0.015)");
-      gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
-      ctx.globalCompositeOperation = "lighter";
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, width, height);
-
       ctx.globalCompositeOperation = "source-over";
       animationFrameId = requestAnimationFrame(drawField);
     };
@@ -118,7 +83,7 @@ export function CanvasBackground() {
     drawField();
 
     return () => {
-      window.removeEventListener("resize", resize);
+      window.removeEventListener("resize", handleResize);
       cancelAnimationFrame(animationFrameId);
     };
   }, []);
@@ -127,7 +92,7 @@ export function CanvasBackground() {
     <>
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 z-0 w-full pointer-events-none"
+        className="fixed inset-0 z-0 h-full w-full pointer-events-none"
       />
       <div
         className="fixed inset-0 z-0 pointer-events-none opacity-[0.14]"
