@@ -1,5 +1,6 @@
 import React from 'react'
 import { useCrowdfund } from './hooks/useCrowdfund'
+import { CanvasBackground } from './components/CanvasBackground'
 import { WalletConnect } from './components/WalletConnect'
 import { CrowdfundHero } from './components/CrowdfundHero'
 import { DonateForm } from './components/DonateForm'
@@ -33,6 +34,7 @@ export default function App() {
 
   return (
     <div className="relative min-h-screen bg-[#030303] text-white flex flex-col selection:bg-white/20 selection:text-white antialiased">
+      <CanvasBackground />
       <a
         href="#console"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[80] focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-[#030303]"
