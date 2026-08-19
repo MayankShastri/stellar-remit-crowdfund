@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 
 export function CanvasBackground() {
   const canvasRef = useRef(null);
@@ -7,7 +7,7 @@ export function CanvasBackground() {
 
   useEffect(() => {
     const handleMouseMove = (e) => {
-      targetRef.current = { x: e.clientX, y: e.clientY };
+      targetRef.current = { x: e.clientX, y: e.clientY + window.scrollY };
     };
     window.addEventListener("mousemove", handleMouseMove);
     return () => window.removeEventListener("mousemove", handleMouseMove);
@@ -21,22 +21,23 @@ export function CanvasBackground() {
     if (!ctx) return;
 
     let animationFrameId;
-    let width = (canvas.width = window.innerWidth);
-    let height = (canvas.height = window.innerHeight);
+    let width, height;
     let time = 0;
     const spacing = 7;
     const dotSize = 5;
+    const glowRadius = 220;
 
     const reduceMotion =
       typeof window !== "undefined" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    const handleResize = () => {
+    const resize = () => {
       width = canvas.width = window.innerWidth;
-      height = canvas.height = window.innerHeight;
+      height = canvas.height = Math.max(document.documentElement.scrollHeight, window.innerHeight);
     };
 
-    window.addEventListener("resize", handleResize);
+    resize();
+    window.addEventListener("resize", resize);
 
     const drawField = () => {
       ctx.fillStyle = "#030303";
@@ -44,7 +45,6 @@ export function CanvasBackground() {
 
       time += reduceMotion ? 0.002 : 0.011;
 
-      // Smoothly follow mouse
       const lerp = 0.06;
       mouseRef.current.x += (targetRef.current.x - mouseRef.current.x) * lerp;
       mouseRef.current.y += (targetRef.current.y - mouseRef.current.y) * lerp;
@@ -52,14 +52,10 @@ export function CanvasBackground() {
       const mouseX = mouseRef.current.x;
       const mouseY = mouseRef.current.y;
 
-      // Arch center follows mouse X
       const centerX = mouseX;
-      const archPeakY = height * 0.30;
+      const archPeakY = height * 0.08;
       const archWidth = width * 1.45;
-      const archHeight = height * 0.70;
-
-      // Cursor glow radius
-      const glowRadius = 220;
+      const archHeight = height * 0.85;
 
       ctx.globalCompositeOperation = "lighter";
 
@@ -78,7 +74,6 @@ export function CanvasBackground() {
             intensity = intensity * 0.72 + waveX * waveY * 0.24 * intensity;
             intensity *= Math.max(0, 1 - Math.pow(Math.abs(normX), 2.2));
 
-            // Cursor proximity boost
             const dx = x - mouseX;
             const dy = y - mouseY;
             const distToCursor = Math.sqrt(dx * dx + dy * dy);
@@ -94,7 +89,6 @@ export function CanvasBackground() {
                 lum = Math.min(255, lum + 140 * coreBoost);
               }
 
-              // Tint brighter near cursor
               const cursorTint = Math.min(1, cursorBoost * 1.5);
               const r = Math.floor(lum * (0.95 + cursorTint * 0.05));
               const g = Math.floor(lum * (0.98 + cursorTint * 0.02));
@@ -108,7 +102,7 @@ export function CanvasBackground() {
         }
       }
 
-      // Additional soft radial glow at cursor
+      // Soft radial glow at cursor
       const gradient = ctx.createRadialGradient(mouseX, mouseY, 0, mouseX, mouseY, glowRadius * 1.8);
       gradient.addColorStop(0, "rgba(255, 255, 255, 0.035)");
       gradient.addColorStop(0.4, "rgba(255, 255, 255, 0.015)");
@@ -124,7 +118,7 @@ export function CanvasBackground() {
     drawField();
 
     return () => {
-      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("resize", resize);
       cancelAnimationFrame(animationFrameId);
     };
   }, []);
@@ -133,7 +127,7 @@ export function CanvasBackground() {
     <>
       <canvas
         ref={canvasRef}
-        className="fixed inset-0 z-0 h-full w-full pointer-events-none"
+        className="absolute inset-0 z-0 w-full pointer-events-none"
       />
       <div
         className="fixed inset-0 z-0 pointer-events-none opacity-[0.14]"
