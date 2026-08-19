@@ -16,6 +16,7 @@ dist/
 # Rust / Soroban
 target/
 contracts/*/target/
+contracts/*/test_snapshots/
 
 # IDE
 .vscode/
