@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Send, Loader2, AlertCircle } from 'lucide-react'
 
-export function DonateForm({ address, isDonating, onDonate }) {
+export function DonateForm({ address, balance, isDonating, onDonate }) {
   const [amount, setAmount] = useState('')
   const [error, setError] = useState('')
 
@@ -25,6 +25,13 @@ export function DonateForm({ address, isDonating, onDonate }) {
       return
     }
 
+    if (balance != null && num > balance - 0.01) {
+      setError(
+        `Insufficient balance — you have ${balance.toFixed(2)} XLM available`
+      )
+      return
+    }
+
     onDonate(amount)
   }
 
@@ -36,7 +43,14 @@ export function DonateForm({ address, isDonating, onDonate }) {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-xs font-medium text-zinc-400 mb-2">Amount (XLM)</label>
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-xs font-medium text-zinc-400">Amount (XLM)</label>
+            {address && balance != null && (
+              <span className="text-[11px] font-mono text-zinc-500">
+                Balance: {balance.toFixed(2)} XLM
+              </span>
+            )}
+          </div>
           <input
             type="number"
             step="0.01"

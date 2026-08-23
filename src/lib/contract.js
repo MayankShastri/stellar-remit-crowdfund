@@ -3,6 +3,15 @@ import * as StellarSdk from '@stellar/stellar-sdk'
 import { CONTRACT_ID, RPC_URL, NETWORK_PASSPHRASE, xlmToStroops } from './config'
 
 const server = new SorobanRpc.Server(RPC_URL, { allowHttp: false })
+const HORIZON_URL = 'https://horizon-testnet.stellar.org'
+
+export async function getXlmBalance(address) {
+  const res = await fetch(`${HORIZON_URL}/accounts/${address}`)
+  if (!res.ok) return null
+  const data = await res.json()
+  const native = data.balances?.find(b => b.asset_type === 'native')
+  return native ? parseFloat(native.balance) : 0
+}
 
 export async function getProgress() {
   const account = await server.getAccount('GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWhf')

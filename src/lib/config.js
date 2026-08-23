@@ -1,4 +1,4 @@
-export const CONTRACT_ID = 'CDI3URZZQOOKNUEEJXACSOU6KVE6IFQ6CGPBSYMPBILPTQFSR6FFURCU'
+export const CONTRACT_ID = 'CCB7Z2LLI7XGAE2MMTNHBFA3CG7OD5LRI2LEM5WX5ZBD3ESDJTEJZ2CT'
 export const RPC_URL = 'https://soroban-testnet.stellar.org'
 export const NETWORK_PASSPHRASE = 'Test SDF Network ; September 2015'
 export const EXPLORER_BASE = 'https://stellar.expert/explorer/testnet'

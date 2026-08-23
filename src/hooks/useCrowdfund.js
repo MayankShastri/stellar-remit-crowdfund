@@ -18,6 +18,7 @@ import {
   pollTxResult,
   getEvents,
   fetchLatestLedger,
+  getXlmBalance,
 } from '../lib/contract'
 import { stroopsToXlm, NETWORK_PASSPHRASE, RPC_URL, CONTRACT_ID } from '../lib/config'
 
@@ -33,6 +34,7 @@ export function useCrowdfund() {
   const [txError, setTxError] = useState(null)
   const [toast, setToast] = useState(null)
   const [isWithdrawing, setIsWithdrawing] = useState(false)
+  const [balance, setBalance] = useState(null)
 
   const latestLedgerRef = useRef(null)
   const pollingRef = useRef(null)
@@ -78,6 +80,16 @@ export function useCrowdfund() {
       })
       .catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (!address) {
+      setBalance(null)
+      return
+    }
+    getXlmBalance(address)
+      .then(setBalance)
+      .catch(() => setBalance(null))
+  }, [address])
 
   useEffect(() => {
     const pollEvents = async () => {
@@ -131,6 +143,11 @@ export function useCrowdfund() {
         return
       }
 
+      if (balance != null && numAmount > balance - 0.01) {
+        showToast('error', 'Insufficient XLM balance')
+        return
+      }
+
       setIsDonating(true)
       setTxStatus('pending')
       setTxHash(null)
@@ -151,6 +168,7 @@ export function useCrowdfund() {
           setTxStatus('success')
           showToast('success', `Donation of ${numAmount} XLM confirmed!`)
           refreshCampaign()
+          getXlmBalance(address).then(setBalance).catch(() => {})
         } else {
           setTxStatus('error')
           setTxError(result?.statusXdr || 'Transaction failed')
@@ -174,7 +192,7 @@ export function useCrowdfund() {
         setIsDonating(false)
       }
     },
-    [address, refreshCampaign]
+    [address, balance, refreshCampaign]
   )
 
   const handleWithdraw = useCallback(async () => {
@@ -217,12 +235,13 @@ export function useCrowdfund() {
       const sendResult = await submitSignedTx(signedXdr)
       setTxHash(sendResult.hash)
 
-      const result = await pollTxResult(sendResult.hash)
-      if (result?.status === 'SUCCESS') {
-        setTxStatus('success')
-        showToast('success', 'Funds withdrawn successfully!')
-        refreshCampaign()
-      } else {
+        const result = await pollTxResult(sendResult.hash)
+        if (result?.status === 'SUCCESS') {
+          setTxStatus('success')
+          showToast('success', 'Funds withdrawn successfully!')
+          refreshCampaign()
+          getXlmBalance(address).then(setBalance).catch(() => {})
+        } else {
         setTxStatus('error')
         setTxError(result?.statusXdr || 'Withdrawal failed')
         showToast('error', 'Withdrawal failed')
@@ -259,6 +278,7 @@ export function useCrowdfund() {
     txHash,
     txError,
     toast,
+    balance,
     isAdmin: address && admin && address === admin,
     progressPercent: progress.goal > 0n
       ? Math.min(100, Number((progress.total * 10000n) / progress.goal) / 100)

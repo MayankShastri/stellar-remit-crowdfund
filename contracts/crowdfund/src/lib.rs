@@ -1,6 +1,8 @@
 #![no_std]
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, Address, Env, Vec,
+    contract, contractimpl, contracttype, symbol_short,
+    token::Client as TokenClient,
+    Address, Env, Vec,
 };
 
 const DONATION: soroban_sdk::Symbol = symbol_short!("DONATION");
@@ -9,6 +11,7 @@ const WITHDRAWN: soroban_sdk::Symbol = symbol_short!("WITHDRAWN");
 #[contracttype]
 pub enum DataKey {
     Admin,
+    Token,
     Goal,
     TotalRaised,
     Donor(Address),
@@ -20,12 +23,13 @@ pub struct Crowdfund;
 
 #[contractimpl]
 impl Crowdfund {
-    pub fn initialize(env: Env, admin: Address, goal: i128) {
+    pub fn initialize(env: Env, admin: Address, token: Address, goal: i128) {
         if env.storage().instance().has(&DataKey::Admin) {
             panic!("already initialized");
         }
         assert!(goal > 0, "goal must be positive");
         env.storage().instance().set(&DataKey::Admin, &admin);
+        env.storage().instance().set(&DataKey::Token, &token);
         env.storage().instance().set(&DataKey::Goal, &goal);
         env.storage().instance().set(&DataKey::TotalRaised, &0i128);
         env.storage().instance().set(&DataKey::DonorList, &Vec::<Address>::new(&env));
@@ -33,6 +37,11 @@ impl Crowdfund {
 
     pub fn donate(env: Env, donor: Address, amount: i128) {
         assert!(amount > 0, "amount must be positive");
+        donor.require_auth();
+
+        let token_address: Address = env.storage().instance().get(&DataKey::Token).unwrap();
+        let token = TokenClient::new(&env, &token_address);
+        token.transfer(&donor, &env.current_contract_address(), &amount);
 
         let total: i128 = env.storage().instance().get(&DataKey::TotalRaised).unwrap();
         let new_total = total + amount;
@@ -66,13 +75,22 @@ impl Crowdfund {
     }
 
     pub fn withdraw(env: Env, admin: Address) {
-        let stored_admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
+        let stored_admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
         assert!(admin == stored_admin, "unauthorized");
 
         let total: i128 = env.storage().instance().get(&DataKey::TotalRaised).unwrap();
         let goal: i128 = env.storage().instance().get(&DataKey::Goal).unwrap();
         assert!(total >= goal, "goal not yet reached");
+
+        let token_address: Address = env.storage().instance().get(&DataKey::Token).unwrap();
+        let token = TokenClient::new(&env, &token_address);
+        let escrow = env.current_contract_address();
+        let balance = token.balance(&escrow);
+        assert!(balance > 0, "no funds held");
+        token.transfer(&escrow, &admin, &balance);
+
+        env.storage().instance().set(&DataKey::TotalRaised, &0i128);
 
         env.events().publish((WITHDRAWN, admin), total);
     }
@@ -120,16 +138,23 @@ impl Crowdfund {
 #[cfg(test)]
 mod test {
     use super::*;
-    use soroban_sdk::{testutils::Address as _, Env};
+    use soroban_sdk::testutils::Address as _;
+    use soroban_sdk::token::StellarAssetClient;
+
+    fn setup(env: &Env) -> (CrowdfundClient<'_>, Address, Address) {
+        let admin = Address::generate(env);
+        let sac = env.register_stellar_asset_contract_v2(admin.clone());
+        let token_id = sac.address();
+        let contract_id = env.register(Crowdfund, ());
+        let client = CrowdfundClient::new(env, &contract_id);
+        client.initialize(&admin, &token_id, &100_000_000);
+        (client, token_id, admin)
+    }
 
     #[test]
     fn test_initialize_and_progress() {
         let env = Env::default();
-        let admin = Address::generate(&env);
-        let contract_id = env.register(Crowdfund, ());
-        let client = CrowdfundClient::new(&env, &contract_id);
-
-        client.initialize(&admin, &100_000_000);
+        let (client, _, _) = setup(&env);
 
         let (total, goal) = client.get_progress();
         assert_eq!(total, 0);
@@ -137,14 +162,13 @@ mod test {
     }
 
     #[test]
-    fn test_donate() {
+    fn test_donate_transfers_funds_into_escrow() {
         let env = Env::default();
-        let admin = Address::generate(&env);
-        let donor1 = Address::generate(&env);
-        let contract_id = env.register(Crowdfund, ());
-        let client = CrowdfundClient::new(&env, &contract_id);
+        let (client, token_id, _) = setup(&env);
+        env.mock_all_auths();
 
-        client.initialize(&admin, &100_000_000);
+        let donor1 = Address::generate(&env);
+        StellarAssetClient::new(&env, &token_id).mint(&donor1, &50_000_000);
         client.donate(&donor1, &50_000_000);
 
         let (total, _) = client.get_progress();
@@ -157,13 +181,13 @@ mod test {
     #[test]
     fn test_multiple_donors() {
         let env = Env::default();
-        let admin = Address::generate(&env);
+        let (client, token_id, _) = setup(&env);
+        env.mock_all_auths();
+
         let donor1 = Address::generate(&env);
         let donor2 = Address::generate(&env);
-        let contract_id = env.register(Crowdfund, ());
-        let client = CrowdfundClient::new(&env, &contract_id);
-
-        client.initialize(&admin, &100_000_000);
+        StellarAssetClient::new(&env, &token_id).mint(&donor1, &30_000_000);
+        StellarAssetClient::new(&env, &token_id).mint(&donor2, &70_000_000);
         client.donate(&donor1, &30_000_000);
         client.donate(&donor2, &70_000_000);
 
@@ -177,60 +201,61 @@ mod test {
     #[test]
     fn test_cannot_double_init() {
         let env = Env::default();
-        let admin = Address::generate(&env);
-        let contract_id = env.register(Crowdfund, ());
-        let client = CrowdfundClient::new(&env, &contract_id);
+        let (client, _, admin) = setup(&env);
+        let token = Address::generate(&env);
 
-        client.initialize(&admin, &100_000_000);
-
-        let result = client.try_initialize(&admin, &100_000_000);
+        let result = client.try_initialize(&admin, &token, &100_000_000);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_withdraw_before_goal_fails() {
         let env = Env::default();
-        let admin = Address::generate(&env);
-        let donor = Address::generate(&env);
-        let contract_id = env.register(Crowdfund, ());
-        let client = CrowdfundClient::new(&env, &contract_id);
+        let (client, token_id, admin) = setup(&env);
+        env.mock_all_auths();
 
-        client.initialize(&admin, &100_000_000);
+        let donor = Address::generate(&env);
+        StellarAssetClient::new(&env, &token_id).mint(&donor, &50_000_000);
         client.donate(&donor, &50_000_000);
 
-        env.mock_all_auths();
         let result = client.try_withdraw(&admin);
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_withdraw_after_goal() {
+    fn test_withdraw_after_goal_pays_out_admin() {
         let env = Env::default();
-        let admin = Address::generate(&env);
-        let donor = Address::generate(&env);
-        let contract_id = env.register(Crowdfund, ());
-        let client = CrowdfundClient::new(&env, &contract_id);
+        let (client, token_id, admin) = setup(&env);
+        env.mock_all_auths();
 
-        client.initialize(&admin, &100_000_000);
+        let donor = Address::generate(&env);
+        StellarAssetClient::new(&env, &token_id).mint(&donor, &100_000_000);
         client.donate(&donor, &100_000_000);
 
-        env.mock_all_auths();
+        let token = TokenClient::new(&env, &token_id);
+        let escrow = client.address.clone();
+        assert_eq!(token.balance(&escrow), 100_000_000);
+
         client.withdraw(&admin);
+
+        assert_eq!(token.balance(&escrow), 0);
+        assert_eq!(token.balance(&admin), 100_000_000);
+
+        let (total, _) = client.get_progress();
+        assert_eq!(total, 0);
     }
 
     #[test]
     fn test_unauthorized_withdraw_fails() {
         let env = Env::default();
-        let admin = Address::generate(&env);
+        let (client, token_id, _) = setup(&env);
+        env.mock_all_auths();
+
         let other = Address::generate(&env);
         let donor = Address::generate(&env);
-        let contract_id = env.register(Crowdfund, ());
-        let client = CrowdfundClient::new(&env, &contract_id);
-
-        client.initialize(&admin, &100_000_000);
+        StellarAssetClient::new(&env, &token_id).mint(&donor, &100_000_000);
         client.donate(&donor, &100_000_000);
 
-        env.mock_all_auths();
         let result = client.try_withdraw(&other);
         assert!(result.is_err());
     }

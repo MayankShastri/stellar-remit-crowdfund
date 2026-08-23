@@ -23,6 +23,7 @@ export default function App() {
     txHash,
     txError,
     toast,
+    balance,
     progressPercent,
     handleConnect,
     handleDisconnect,
@@ -92,6 +93,7 @@ export default function App() {
               <div className="space-y-8">
                 <DonateForm
                   address={address}
+                  balance={balance}
                   isDonating={isDonating}
                   onDonate={handleDonate}
                 />
