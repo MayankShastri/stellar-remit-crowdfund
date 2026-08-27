@@ -50,9 +50,13 @@ The contract acts as a real escrow: `donate` pulls XLM from the donor into the c
 
 ### Frontend
 ```bash
+git clone https://github.com/MayankShastri/stellar-remit-crowdfund.git
+cd stellar-remit-crowdfund
 npm install
 npm run dev
 ```
+
+Open `http://localhost:5173` in your browser.
 
 ### Contract
 ```bash
