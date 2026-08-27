@@ -29,16 +29,29 @@ export function getActiveAddress() {
   return StellarWalletsKit.getAddress().then(r => r.address).catch(() => null)
 }
 
+function normalizeSigned(result) {
+  const signed =
+    typeof result === 'string'
+      ? result
+      : result?.signedTxXdr ?? result?.signedXdr
+  if (!signed) {
+    throw new Error('Wallet returned no signed transaction')
+  }
+  return { signedXdr: signed, signerAddress: result?.signerAddress ?? null }
+}
+
 export async function signTransaction(xdr) {
-  return StellarWalletsKit.signTransaction(xdr, {
+  const result = await StellarWalletsKit.signTransaction(xdr, {
     networkPassphrase: NETWORK_PASSPHRASE,
   })
+  return normalizeSigned(result)
 }
 
 export async function signAndSubmit(xdr) {
-  return StellarWalletsKit.signAndSubmitTransaction(xdr, {
+  const result = await StellarWalletsKit.signAndSubmitTransaction(xdr, {
     networkPassphrase: NETWORK_PASSPHRASE,
   })
+  return normalizeSigned(result)
 }
 
 export function onWalletChange(callback) {

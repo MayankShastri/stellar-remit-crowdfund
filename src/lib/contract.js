@@ -5,6 +5,9 @@ import { CONTRACT_ID, RPC_URL, NETWORK_PASSPHRASE, xlmToStroops } from './config
 const server = new SorobanRpc.Server(RPC_URL, { allowHttp: false })
 const HORIZON_URL = 'https://horizon-testnet.stellar.org'
 
+const NULL_ACCOUNT_ID = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF'
+const readOnlyAccount = new StellarSdk.Account(NULL_ACCOUNT_ID, '0')
+
 export async function getXlmBalance(address) {
   const res = await fetch(`${HORIZON_URL}/accounts/${address}`)
   if (!res.ok) return null
@@ -14,9 +17,8 @@ export async function getXlmBalance(address) {
 }
 
 export async function getProgress() {
-  const account = await server.getAccount('GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWhf')
   const contract = new StellarSdk.Contract(CONTRACT_ID)
-  const tx = new StellarSdk.TransactionBuilder(account, {
+  const tx = new StellarSdk.TransactionBuilder(readOnlyAccount, {
     fee: '100',
     networkPassphrase: NETWORK_PASSPHRASE,
   })
@@ -37,9 +39,8 @@ export async function getProgress() {
 }
 
 export async function getDonors() {
-  const account = await server.getAccount('GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWhf')
   const contract = new StellarSdk.Contract(CONTRACT_ID)
-  const tx = new StellarSdk.TransactionBuilder(account, {
+  const tx = new StellarSdk.TransactionBuilder(readOnlyAccount, {
     fee: '100',
     networkPassphrase: NETWORK_PASSPHRASE,
   })
@@ -63,9 +64,8 @@ export async function getDonors() {
 }
 
 export async function getAdmin() {
-  const account = await server.getAccount('GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWhf')
   const contract = new StellarSdk.Contract(CONTRACT_ID)
-  const tx = new StellarSdk.TransactionBuilder(account, {
+  const tx = new StellarSdk.TransactionBuilder(readOnlyAccount, {
     fee: '100',
     networkPassphrase: NETWORK_PASSPHRASE,
   })
@@ -86,7 +86,10 @@ export async function getAdmin() {
 
 export function buildDonateTx(sourceAccount, amountXlm) {
   const amount = xlmToStroops(amountXlm)
-  const account = new StellarSdk.Account(sourceAccount, '0')
+  const account =
+    typeof sourceAccount === 'string'
+      ? new StellarSdk.Account(sourceAccount, '0')
+      : sourceAccount
   const contract = new StellarSdk.Contract(CONTRACT_ID)
   const tx = new StellarSdk.TransactionBuilder(account, {
     fee: '100000',
@@ -116,6 +119,15 @@ export async function submitSignedTx(signedXdr) {
   const tx = new StellarSdk.Transaction(signedXdr, NETWORK_PASSPHRASE)
   const result = await server.sendTransaction(tx)
   return result
+}
+
+export function describeTxError(errorResultXdr) {
+  try {
+    const tr = StellarSdk.xdr.TransactionResult.fromXDR(errorResultXdr, 'base64')
+    return tr.result().switch().name
+  } catch {
+    return 'Transaction rejected by the network'
+  }
 }
 
 export async function pollTxResult(hash, maxAttempts = 30) {

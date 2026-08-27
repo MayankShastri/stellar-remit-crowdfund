@@ -19,6 +19,7 @@ import {
   getEvents,
   fetchLatestLedger,
   getXlmBalance,
+  describeTxError,
 } from '../lib/contract'
 import { stroopsToXlm, NETWORK_PASSPHRASE, RPC_URL, CONTRACT_ID } from '../lib/config'
 
@@ -154,13 +155,21 @@ export function useCrowdfund() {
       setTxError(null)
 
       try {
-        const tx = buildDonateTx(address, numAmount)
         const server = new SorobanRpc.Server(RPC_URL)
+        const account = await server.getAccount(address)
+        const tx = buildDonateTx(account, numAmount)
         const prepared = await server.prepareTransaction(tx)
         const preparedXdr = prepared.toXDR()
         const { signedXdr } = await signTransaction(preparedXdr)
 
         const sendResult = await submitSignedTx(signedXdr)
+        if (sendResult.status === 'ERROR') {
+          const detail = describeTxError(sendResult.errorResultXdr)
+          setTxStatus('error')
+          setTxError(detail)
+          showToast('error', `Transaction rejected: ${detail}`)
+          return
+        }
         setTxHash(sendResult.hash)
 
         const result = await pollTxResult(sendResult.hash)
