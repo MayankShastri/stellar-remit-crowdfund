@@ -70,4 +70,4 @@ stellar contract deploy --wasm contracts/crowdfund/crowdfund.wasm --network test
 
 ## Screenshot
 
-![Stellar Remit - Crowdfund](screenshot.png)
+![Stellar Remit - Crowdfund](docs/screenshots/Stellar%20Remit-Crowdfund.png)
