@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "preinstall": "node -e \"try{const fs=require('fs'),p=require('path'),d='node_modules/.bin';fs.mkdirSync(d,{recursive:true});fs.writeFileSync(p.join(d,'true.cmd'),'@echo off\\r\\nexit /b 0');fs.writeFileSync(p.join(d,'true'),'#!/bin/sh\\nexit 0');try{fs.chmodSync(p.join(d,'true'),0o755)}catch(e){}}catch(e){}\""
   },
   "dependencies": {
     "@creit.tech/stellar-wallets-kit": "^2.5.0",
