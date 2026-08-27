@@ -90,6 +90,10 @@ export function buildDonateTx(sourceAccount, amountXlm) {
     typeof sourceAccount === 'string'
       ? new StellarSdk.Account(sourceAccount, '0')
       : sourceAccount
+  const address =
+    typeof sourceAccount === 'string'
+      ? sourceAccount
+      : account.accountId()
   const contract = new StellarSdk.Contract(CONTRACT_ID)
   const tx = new StellarSdk.TransactionBuilder(account, {
     fee: '100000',
@@ -98,7 +102,7 @@ export function buildDonateTx(sourceAccount, amountXlm) {
     .addOperation(
       contract.call(
         'donate',
-        StellarSdk.Address.fromString(sourceAccount).toScVal(),
+        StellarSdk.Address.fromString(address).toScVal(),
         StellarSdk.nativeToScVal(amount, { type: 'i128' })
       )
     )
